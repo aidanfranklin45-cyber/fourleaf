@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -50,25 +51,66 @@ function startProcess(name, cmd, args, extraEnv = {}, cwd = rootDir) {
   return child;
 }
 
-// 2. Start Redis silently in background
-const redisBin =
-  'C:\\Users\\Aidan\\AppData\\Local\\Microsoft\\WinGet\\Packages\\taizod1024.redis-windows-fork_Microsoft.Winget.Source_8wekyb3d8bbwe\\Redis-8.10.1-Windows-x64-msys2\\redis-server.exe';
-if (fs.existsSync(redisBin)) {
-  console.log('[FourLeaf] Starting Redis silently in background...');
-  const redisChild = spawn(redisBin, [], {
-    cwd: path.dirname(redisBin),
-    stdio: 'ignore',
-    windowsHide: true
+function isPortOpen(port, host = '127.0.0.1') {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    socket.setTimeout(800);
+    socket.on('connect', () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.on('timeout', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.on('error', () => {
+      socket.destroy();
+      resolve(false);
+    });
+    socket.connect(port, host);
   });
-  processes.push(redisChild);
-} else {
-  console.warn(
-    '[FourLeaf] Warning: redis-server.exe not found at default path'
-  );
 }
 
-// Small delay for Redis to be ready
-setTimeout(() => {
+async function waitForPort(port, host = '127.0.0.1', timeoutMs = 25000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (await isPortOpen(port, host)) return true;
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return false;
+}
+
+async function main() {
+  // 2. Ensure Redis is running
+  const redisPortOpen = await isPortOpen(6379);
+  if (!redisPortOpen) {
+    const redisBin =
+      'C:\\Users\\Aidan\\AppData\\Local\\Microsoft\\WinGet\\Packages\\taizod1024.redis-windows-fork_Microsoft.Winget.Source_8wekyb3d8bbwe\\Redis-8.10.1-Windows-x64-msys2\\redis-server.exe';
+    if (fs.existsSync(redisBin)) {
+      console.log('[FourLeaf] Starting Redis server on port 6379...');
+      const redisChild = spawn(redisBin, [], {
+        cwd: path.dirname(redisBin),
+        stdio: 'ignore'
+      });
+      processes.push(redisChild);
+    } else {
+      console.warn(
+        '[FourLeaf] Warning: redis-server.exe not found at default path'
+      );
+    }
+
+    const ready = await waitForPort(6379);
+    if (!ready) {
+      console.error(
+        '[FourLeaf] Error: Timed out waiting for Redis on port 6379.'
+      );
+    } else {
+      console.log('[FourLeaf] Redis is live on port 6379.');
+    }
+  } else {
+    console.log('[FourLeaf] Redis is already active on port 6379.');
+  }
+
   // 3. Start Authenticator
   startProcess(
     'Authenticator',
@@ -91,6 +133,10 @@ setTimeout(() => {
       PDFGENERATOR_URL: 'http://localhost:8300/pdfgenerator'
     }
   );
+
+  // Wait for Authenticator to be live before opening frontends
+  await waitForPort(8000);
+  console.log('[FourLeaf] Authenticator is live on port 8000.');
 
   // 5. Start Landlord UI
   startProcess('Landlord-UI', 'yarn', [
@@ -120,19 +166,17 @@ setTimeout(() => {
     }
   );
 
-  // Open Browser after services spin up
-  setTimeout(() => {
-    console.log('\n==========================================================');
-    console.log('  FourLeaf Stack is Live at http://localhost:8080/landlord');
-    console.log('  Login: aidan.franklin45@gmail.com / Password123!');
-    console.log('  Press Ctrl+C to stop all services.');
-    console.log('==========================================================\n');
+  await waitForPort(8080);
+  console.log('\n==========================================================');
+  console.log('  FourLeaf Stack is Live at http://localhost:8080/landlord');
+  console.log('  Login: aidan.franklin45@gmail.com / Password123!');
+  console.log('  Press Ctrl+C to stop all services.');
+  console.log('==========================================================\n');
 
-    spawn('cmd.exe', ['/c', 'start', 'http://localhost:8080/landlord'], {
-      shell: true
-    });
-  }, 6000);
-}, 1500);
+  spawn('cmd.exe', ['/c', 'start', 'http://localhost:8080/landlord'], {
+    shell: true
+  });
+}
 
 function cleanup() {
   console.log('\n[FourLeaf] Shutting down all services...');
@@ -146,3 +190,8 @@ function cleanup() {
 
 process.on('SIGINT', cleanup);
 process.on('SIGTERM', cleanup);
+
+main().catch((err) => {
+  console.error('[FourLeaf] Fatal error:', err);
+  cleanup();
+});

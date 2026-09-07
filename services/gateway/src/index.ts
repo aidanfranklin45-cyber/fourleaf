@@ -170,6 +170,15 @@ function exposeFrontends(application: Application) {
   );
 
   application.use(
+    ['/_nextjs_font', '/__nextjs_devtools_config'],
+    createProxyMiddleware({
+      target: config.LANDLORD_FRONTEND_URL,
+      ws: true,
+      logProvider
+    })
+  );
+
+  application.use(
     TENANT_BASE_PATH,
     createProxyMiddleware({
       target: config.TENANT_FRONTEND_URL,
