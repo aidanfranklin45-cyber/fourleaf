@@ -1,4 +1,4 @@
-# FourLeaf - Start Local Development & Testing Stack
+# FourLeaf - Start Local Development & Testing Stack (Detached Windows)
 $ErrorActionPreference = "Stop"
 
 Write-Host "==========================================================" -ForegroundColor Cyan
@@ -6,62 +6,69 @@ Write-Host "  Starting FourLeaf Local Stack with MongoDB Atlas" -ForegroundColor
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 $root = Resolve-Path (Join-Path $PSScriptRoot "..")
-Set-Location $root
 
-# 1. Environment variables
-$env:PORT_GATEWAY = "8080"
-$env:PORT_AUTH = "8000"
-$env:PORT_API = "8200"
-$env:PORT_LANDLORD = "8180"
-
-$env:MONGO_URL = "mongodb+srv://fourleaf_admin:test1234@cluster0.rfu6gqe.mongodb.net/fourleaf?retryWrites=true&w=majority&appName=Cluster0"
-$env:REDIS_URL = "redis://127.0.0.1:6379"
-$env:ACCESS_TOKEN_SECRET = "jE98MKbAz1N8BFQ8dYZaxS1K9FSwe3HD"
-$env:REFRESH_TOKEN_SECRET = "pvEhGeIWPr5lzvRi85E8PadX60mL1qQt"
-$env:RESET_TOKEN_SECRET = "Gh5retT1tgrRwOsiSyqEORNH7/n6PSOD"
-$env:CIPHER_KEY = "6ff7f9d67b03ef9a44943ccafc1af0f0"
-$env:CIPHER_IV_KEY = "a23fa9e20b996af1"
-
-# 2. Start Redis if not already running
-$redisProc = Get-Process redis-server -ErrorAction SilentlyContinue
-if (-not $redisProc) {
-    Write-Host "[1/5] Starting Redis server..." -ForegroundColor Yellow
-    $redisBin = "C:\Users\Aidan\AppData\Local\Microsoft\WinGet\Packages\taizod1024.redis-windows-fork_Microsoft.Winget.Source_8wekyb3d8bbwe\Redis-8.10.1-Windows-x64-msys2\redis-server.exe"
-    if (Test-Path $redisBin) {
-        Start-Process -FilePath $redisBin -WindowStyle Hidden
-        Start-Sleep -Seconds 1
-    } else {
-        Write-Warning "redis-server.exe not found at $redisBin."
+# Load environment variables from .env.fourleaf
+$envFile = Join-Path $root ".env.fourleaf"
+if (Test-Path $envFile) {
+    Get-Content $envFile | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -and -not $line.StartsWith("#") -and $line.Contains("=")) {
+            $split = $line -split "=", 2
+            $key = $split[0].Trim()
+            $val = $split[1].Trim()
+            if (-not [string]::IsNullOrEmpty($key)) {
+                [System.Environment]::SetEnvironmentVariable($key, $val, [System.EnvironmentVariableTarget]::Process)
+            }
+        }
     }
 } else {
-    Write-Host "[1/5] Redis server is already running." -ForegroundColor Green
+    Write-Warning "Configuration file .env.fourleaf not found at $envFile. Please copy .env.fourleaf.example to .env.fourleaf."
 }
 
-# 3. Start Authenticator
-Write-Host "[2/5] Starting Authenticator on port 8000..." -ForegroundColor Yellow
-$authCmd = "`$env:PORT='8000'; `$env:MONGO_URL='$env:MONGO_URL'; `$env:REDIS_URL='$env:REDIS_URL'; `$env:ACCESS_TOKEN_SECRET='$env:ACCESS_TOKEN_SECRET'; `$env:REFRESH_TOKEN_SECRET='$env:REFRESH_TOKEN_SECRET'; `$env:RESET_TOKEN_SECRET='$env:RESET_TOKEN_SECRET'; `$env:CIPHER_KEY='$env:CIPHER_KEY'; `$env:CIPHER_IV_KEY='$env:CIPHER_IV_KEY'; yarn workspace @microrealestate/authenticator run start"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $authCmd -WindowStyle Minimized
+if (-not $env:MONGO_URL) {
+    Write-Error "MONGO_URL is not configured. Please define it in .env.fourleaf."
+    exit 1
+}
 
-# 4. Start API
-Write-Host "[3/5] Starting Core API on port 8200..." -ForegroundColor Yellow
-$apiCmd = "`$env:PORT='8200'; `$env:MONGO_URL='$env:MONGO_URL'; `$env:ACCESS_TOKEN_SECRET='$env:ACCESS_TOKEN_SECRET'; `$env:CIPHER_KEY='$env:CIPHER_KEY'; `$env:CIPHER_IV_KEY='$env:CIPHER_IV_KEY'; `$env:EMAILER_URL='http://localhost:8400/emailer'; `$env:PDFGENERATOR_URL='http://localhost:8300/pdfgenerator'; yarn workspace @microrealestate/api run start"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $apiCmd -WindowStyle Minimized
+if (-not $env:REDIS_URL) {
+    $env:REDIS_URL = "redis://127.0.0.1:6379"
+}
 
-# 5. Start Landlord Webapp
-Write-Host "[4/5] Starting Landlord Next.js frontend on port 8180..." -ForegroundColor Yellow
-$landlordCmd = "yarn workspace @microrealestate/landlord run next dev -p 8180"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $landlordCmd -WindowStyle Minimized
+# 1. Start Redis
+$redisBin = "C:\Users\Aidan\AppData\Local\Microsoft\WinGet\Packages\taizod1024.redis-windows-fork_Microsoft.Winget.Source_8wekyb3d8bbwe\Redis-8.10.1-Windows-x64-msys2\redis-server.exe"
+$redisDir = "C:\Users\Aidan\AppData\Local\Microsoft\WinGet\Packages\taizod1024.redis-windows-fork_Microsoft.Winget.Source_8wekyb3d8bbwe\Redis-8.10.1-Windows-x64-msys2"
 
-# 6. Start Gateway
-Write-Host "[5/5] Starting Gateway on port 8080..." -ForegroundColor Yellow
-$gatewayCmd = "`$env:PORT='8080'; `$env:AUTHENTICATOR_URL='http://localhost:8000'; `$env:API_URL='http://localhost:8200/api/v2'; `$env:LANDLORD_FRONTEND_URL='http://localhost:8180'; `$env:TENANT_FRONTEND_URL='http://localhost:8190'; `$env:PDFGENERATOR_URL='http://localhost:8300/pdfgenerator'; `$env:EMAILER_URL='http://localhost:8400/emailer'; `$env:TENANTAPI_URL='http://localhost:8250/tenantapi'; yarn workspace @microrealestate/gateway run start"
-Start-Process powershell -ArgumentList "-NoExit", "-Command", $gatewayCmd -WindowStyle Minimized
+Write-Host "[1/5] Starting Redis Server..." -ForegroundColor Yellow
+cmd.exe /c start "FourLeaf-Redis" /D "$redisDir" /MIN "$redisBin"
+Start-Sleep -Seconds 1
+
+# 2. Start Authenticator
+Write-Host "[2/5] Starting Authenticator (Port 8000)..." -ForegroundColor Yellow
+$authScript = "`$env:PORT='8000'; `$env:MONGO_URL='$($env:MONGO_URL)'; `$env:REDIS_URL='$($env:REDIS_URL)'; `$env:ACCESS_TOKEN_SECRET='$($env:ACCESS_TOKEN_SECRET)'; `$env:REFRESH_TOKEN_SECRET='$($env:REFRESH_TOKEN_SECRET)'; `$env:RESET_TOKEN_SECRET='$($env:RESET_TOKEN_SECRET)'; `$env:CIPHER_KEY='$($env:CIPHER_KEY)'; `$env:CIPHER_IV_KEY='$($env:CIPHER_IV_KEY)'; yarn workspace @microrealestate/authenticator run start"
+cmd.exe /c start "FourLeaf-Authenticator" /D "$root" /MIN powershell -NoExit -Command $authScript
+Start-Sleep -Seconds 1
+
+# 3. Start Core API
+Write-Host "[3/5] Starting Core API (Port 8200)..." -ForegroundColor Yellow
+$apiScript = "`$env:PORT='8200'; `$env:MONGO_URL='$($env:MONGO_URL)'; `$env:ACCESS_TOKEN_SECRET='$($env:ACCESS_TOKEN_SECRET)'; `$env:CIPHER_KEY='$($env:CIPHER_KEY)'; `$env:CIPHER_IV_KEY='$($env:CIPHER_IV_KEY)'; `$env:EMAILER_URL='http://localhost:8400/emailer'; `$env:PDFGENERATOR_URL='http://localhost:8300/pdfgenerator'; yarn workspace @microrealestate/api run start"
+cmd.exe /c start "FourLeaf-API" /D "$root" /MIN powershell -NoExit -Command $apiScript
+Start-Sleep -Seconds 1
+
+# 4. Start Landlord Next.js
+Write-Host "[4/5] Starting Landlord Frontend (Port 8180)..." -ForegroundColor Yellow
+$landlordScript = "yarn workspace @microrealestate/landlord run next dev -p 8180"
+cmd.exe /c start "FourLeaf-LandlordUI" /D "$root" /MIN powershell -NoExit -Command $landlordScript
+Start-Sleep -Seconds 2
+
+# 5. Start Gateway
+Write-Host "[5/5] Starting API Gateway (Port 8080)..." -ForegroundColor Yellow
+$gatewayScript = "`$env:PORT='8080'; `$env:AUTHENTICATOR_URL='http://localhost:8000'; `$env:API_URL='http://localhost:8200/api/v2'; `$env:LANDLORD_FRONTEND_URL='http://localhost:8180'; `$env:TENANT_FRONTEND_URL='http://localhost:8190'; `$env:PDFGENERATOR_URL='http://localhost:8300/pdfgenerator'; `$env:EMAILER_URL='http://localhost:8400/emailer'; `$env:TENANTAPI_URL='http://localhost:8250/tenantapi'; yarn workspace @microrealestate/gateway run start"
+cmd.exe /c start "FourLeaf-Gateway" /D "$root" /MIN powershell -NoExit -Command $gatewayScript
 
 Start-Sleep -Seconds 3
 
 Write-Host "==========================================================" -ForegroundColor Green
-Write-Host "  FourLeaf is Ready and Running Locally!" -ForegroundColor Green
-Write-Host "  Opening http://localhost:8080/landlord in your browser..." -ForegroundColor Cyan
+Write-Host "  FourLeaf Stack is Active and Running in Background!" -ForegroundColor Green
+Write-Host "  URL: http://localhost:8080/landlord" -ForegroundColor Cyan
+Write-Host "  Login: aidan.franklin45@gmail.com / Password123!" -ForegroundColor White
 Write-Host "==========================================================" -ForegroundColor Green
-
-Start-Process "http://localhost:8080/landlord"

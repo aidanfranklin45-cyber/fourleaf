@@ -1,8 +1,31 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 
-const MONGO_URL =
-  'mongodb+srv://fourleaf_admin:test1234@cluster0.rfu6gqe.mongodb.net/fourleaf?retryWrites=true&w=majority&appName=Cluster0';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const rootDir = path.resolve(__dirname, '..');
+const envPath = path.join(rootDir, '.env.fourleaf');
+
+let MONGO_URL = process.env.MONGO_URL;
+if (!MONGO_URL && fs.existsSync(envPath)) {
+  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('MONGO_URL=')) {
+      MONGO_URL = trimmed.slice('MONGO_URL='.length).trim();
+      break;
+    }
+  }
+}
+
+if (!MONGO_URL) {
+  console.error(
+    'Error: MONGO_URL is not defined in process.env or .env.fourleaf'
+  );
+  process.exit(1);
+}
 
 async function seed() {
   console.log('Connecting to MongoDB Atlas...');
