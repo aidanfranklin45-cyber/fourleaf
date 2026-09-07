@@ -6,7 +6,7 @@ import { sanitizeRedirect } from './utils/redirect';
 
 const intlMiddleware = createIntlMiddleware(routing);
 
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://gateway:8080';
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8080';
 
 function injectSession(response, session) {
   const overrides = response.headers.get('x-middleware-override-headers') || '';

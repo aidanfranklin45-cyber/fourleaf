@@ -1,4 +1,4 @@
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://gateway:8080';
+const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8080';
 
 export async function isSignUpAvailable(): Promise<boolean> {
   try {

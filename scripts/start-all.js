@@ -23,8 +23,9 @@ if (fs.existsSync(envPath)) {
   }
 }
 
-// Force 127.0.0.1 for local Redis
+// Force 127.0.0.1 for local Redis and localhost for local Gateway
 envVars.REDIS_URL = 'redis://127.0.0.1:6379';
+envVars.GATEWAY_URL = 'http://localhost:8080';
 
 const processes = [];
 
