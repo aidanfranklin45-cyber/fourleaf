@@ -4,11 +4,11 @@
   "license": "SEE LICENSE IN LICENSE.md",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/microrealestate/microrealestate.git"
+    "url": "git+https://github.com/aidanfranklin45-cyber/fourleaf.git"
   },
-  "homepage": "https://microrealestate.app",
+  "homepage": "https://github.com/aidanfranklin45-cyber/fourleaf#readme",
   "bugs": {
-    "url": "https://github.com/microrealestate/microrealestate/issues"
+    "url": "https://github.com/aidanfranklin45-cyber/fourleaf/issues"
   },
   "private": true,
   "type": "module",
