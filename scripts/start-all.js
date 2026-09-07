@@ -49,11 +49,17 @@ function startProcess(name, cmd, args, extraEnv = {}, cwd = rootDir) {
   return child;
 }
 
-// 2. Start Redis
+// 2. Start Redis silently in background
 const redisBin =
   'C:\\Users\\Aidan\\AppData\\Local\\Microsoft\\WinGet\\Packages\\taizod1024.redis-windows-fork_Microsoft.Winget.Source_8wekyb3d8bbwe\\Redis-8.10.1-Windows-x64-msys2\\redis-server.exe';
 if (fs.existsSync(redisBin)) {
-  startProcess('Redis', redisBin, [], {}, path.dirname(redisBin));
+  console.log('[FourLeaf] Starting Redis silently in background...');
+  const redisChild = spawn(redisBin, [], {
+    cwd: path.dirname(redisBin),
+    stdio: 'ignore',
+    windowsHide: true
+  });
+  processes.push(redisChild);
 } else {
   console.warn(
     '[FourLeaf] Warning: redis-server.exe not found at default path'
